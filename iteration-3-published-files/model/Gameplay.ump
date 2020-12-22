@@ -1,0 +1,63 @@
+namespace ca.mcgill.ecse223.kingdomino.model;
+
+class Gameplay {
+
+    gamestatus {
+        // TODO: complete gameplay state machine
+        Initializing {
+            CreatingFirstDraft {
+                entry/{shuffleDominoPile(); createNextDraft(); orderNextDraft();}
+                draftReady -> /{revealNextDraft(); generateInitialPlayerOrder(); selectDominoForCurrentPlayer();} Initializing.SelectingFirstDomino;
+            }
+            SelectingFirstDomino {
+            // TODO add transitions with triggers, guards, actions, and target states
+            }
+        }
+    }
+
+    /*
+     * Guards
+     */
+    
+    public boolean isCurrentPlayerTheLastInTurn() {
+        // TODO: implement this
+        return false;
+    }
+        
+    public boolean isCurrentTurnTheLastInGame() {
+        // TODO: implement this
+        return false;
+    }
+    
+    // You may need to add more guards here
+        
+    /*
+     * Actions
+     */
+    
+    public void shuffleDominoPile() {
+        // TODO: implement this
+    }
+    
+    public void generateInitialPlayerOrder() {
+        // TODO: implement this
+    }
+    
+    public void createNextDraft() {
+        // TODO: implement this
+    }
+    
+    public void orderNextDraft() {
+        // TODO: implement this
+    }
+    
+    public void revealNextDraft() {
+        // TODO: implement this
+    }
+    
+    public void selectDominoForCurrentPlayer() {
+        // TODO: implement this
+    }
+    
+    // You may need to add more actions here
+}

@@ -1,0 +1,245 @@
+namespace ca.mcgill.ecse223.kingdomino.model;
+
+class Gameplay {
+
+    Boolean selectValid = false;
+    Boolean placeValid = false;
+    Boolean discardValid = false;
+    Boolean hasNext = false;
+
+
+	depend ca.mcgill.ecse223.kingdomino.model.DominoInKingdom.DirectionKind;
+	depend ca.mcgill.ecse223.kingdomino.KingdominoApplication;
+	depend ca.mcgill.ecse223.kingdomino.controller.KingdominoController;
+	depend java.util.*;
+
+    gamestatus {
+    	
+        Initializing {
+            CreatingFirstDraft {
+                initReady / {shuffleDominoPile(); orderNextDraft(); revealNextDraft(); generateInitialPlayerOrder();} -> Initializing.SelectingFirstDomino;
+            	initLoaded -> InGame.PlacingDomino;
+            }
+            SelectingFirstDomino {
+            	selectDom(int id) / {chooseNextDomino(id);} -> Initializing.SelectingFirstDomino;
+            	selectReady [selectValid && !isCurrentPlayerTheLastInTurn()] -> Initializing.SelectingFirstDomino;
+            	selectReady [selectValid && isCurrentPlayerTheLastInTurn()] -> InGame.CreatingDraft;
+            }
+        }
+        InGame{
+        	CreatingDraft{
+        		entry/{createNextDraft();} -> InGame.SortingAndRevealingDraft;
+        	}
+        	SortingAndRevealingDraft{
+        		entry/{orderNextDraft(); revealNextDraft();} -> InGame.PlacingDomino;
+        	}
+        	SelectingDomino{
+        	    selectDom(int id) / {chooseNextDomino(id);} -> InGame.SelectingDomino;
+        		selectReady [!isCurrentPlayerTheLastInTurn() && !isCurrentTurnTheLastInGame() && selectValid] -> InGame.PlacingDomino;
+        		selectReady [isCurrentPlayerTheLastInTurn() && !isCurrentTurnTheLastInGame() && selectValid] -> InGame.CreatingDraft;
+        		selectReady [isCurrentPlayerTheLastInTurn() && isCurrentTurnTheLastInGame() && selectValid] / {shiftNextDraft();} -> InGame.PlacingLastDomino;
+        		selectReady [!isCurrentPlayerTheLastInTurn() && isCurrentTurnTheLastInGame() && selectValid] -> InGame.PlacingDomino;
+
+        	}
+        	PlacingDomino{
+        		moveDom(DominoInKingdom dom, String movement, Player player) [isCurrentDominoInKingdom()] / {moveCurrentDomino(dom, movement, player);} -> InGame.PlacingDomino;
+        		moveDom(DominoInKingdom dom, String movement, Player player) [!isCurrentDominoInKingdom()] / {initPlacement();} -> InGame.PlacingDomino;
+        		rotateDom(Player p, Domino domino, String rotation) [isCurrentDominoInKingdom()] / {rotateCurrentDomino(p, domino, rotation);} -> InGame.PlacingDomino;
+        		rotateDom(Player p, Domino domino, String rotation) [!isCurrentDominoInKingdom()] / {initPlacement();} -> InGame.PlacingDomino;
+        		discardDom(Kingdom k, Domino d) / {discardDomino(k,d);} -> InGame.PlacingDomino;
+        		placeDom(Player player, Domino domino, int x, int y, DirectionKind direction, boolean satisfied) / {placeDomino(player, domino, x, y, direction, satisfied);} -> InGame.PlacingDomino;
+        	    placeReady [placeValid] -> InGame.CalculatingPlayerScore;
+        		placeReady [discardValid] -> InGame.CalculatingPlayerScore;
+        	}
+        	PlacingLastDomino{
+        		moveDom(DominoInKingdom dom, String movement, Player player) [isCurrentDominoInKingdom()] / {moveCurrentDomino(dom, movement, player);} -> InGame.PlacingLastDomino;
+        		moveDom(DominoInKingdom dom, String movement, Player player) [!isCurrentDominoInKingdom()] / {initPlacement();} -> InGame.PlacingLastDomino;
+        		rotateDom(Player p, Domino domino, String rotation) [isCurrentDominoInKingdom()] / {rotateCurrentDomino(p, domino, rotation);} -> InGame.PlacingLastDomino;
+        		rotateDom(Player p, Domino domino, String rotation) [!isCurrentDominoInKingdom()] / {initPlacement();} -> InGame.PlacingLastDomino;
+        		discardDom(Kingdom k, Domino d) / {discardDomino(k,d);} -> InGame.PlacingLastDomino;
+        		placeDom(Player player, Domino domino, int x, int y, DirectionKind direction, boolean satisfied) / {placeDomino(player, domino, x, y, direction, satisfied);} -> InGame.PlacingLastDomino;
+        	    placeReady [placeValid] -> InGame.UpdateNextPlayer;
+        		placeReady [discardValid] -> InGame.UpdateNextPlayer;
+
+        	}
+
+        	UpdateNextPlayer{
+        		entry/{updateNextPlayer();} 
+        		[hasNext] -> InGame.PlacingLastDomino;
+        		[!hasNext] -> Finalizing.CalculatingPlayerScore;
+        	}
+
+            CalculatingPlayerScore{
+            	entry/{calculatePlayerScore();} -> InGame.SelectingDomino;
+            }
+        }
+        Finalizing{
+        	CalculatingPlayerScore{
+        		entry/{calculatePlayerScore();} -> Finalizing.CalculatingRanking;
+
+        	}
+        	CalculatingRanking{
+        		entry/{calculateRanking();}
+        	}
+
+        }
+    }
+
+    /*
+     * Setter for test setup
+     */
+
+    public void setGamestatus(String status){
+        switch (status) {
+       	case "CreatingFirstDraft":
+       	    gamestatus = Gamestatus.Initializing;
+       	    gamestatusInitializing = GamestatusInitializing.CreatingFirstDraft;
+       	    break;
+       	case "InGame":
+       		gamestatus = Gamestatus.InGame;
+       		gamestatusInGame = GamestatusInGame.PlacingDomino;
+       		break;
+       	case "Finalizing":
+       		gamestatus = Gamestatus.Finalizing;
+       		gamestatusFinalizing = GamestatusFinalizing.CalculatingPlayerScore;
+       		break;
+       	default:
+       	    throw new RuntimeException("Invalid gamestatus string was provided: " + status);
+       	}
+    }
+
+    /*
+     * Guards
+     */
+    
+    public boolean isCurrentPlayerTheLastInTurn() {
+        return KingdominoController.allDominosInDraftAreSelected(KingdominoApplication.getKingdomino().getCurrentGame().getNextDraft());
+    }
+        
+    public boolean isCurrentTurnTheLastInGame() {
+        return KingdominoApplication.getKingdomino().getCurrentGame().getAllDrafts().size() >= 12;
+    }
+    
+    public boolean isCurrentDominoInKingdom(){
+    	Player player = KingdominoApplication.getKingdomino().getCurrentGame().getNextPlayer();
+    	return KingdominoController.getDominoInKingdomByDomino(player.getDominoSelection().getDomino(), player.getKingdom()) != null;
+    }
+    
+    // You may need to add more guards here
+        
+    /*
+     * Actions for creating first draft
+     */
+    
+    public void shuffleDominoPile() {
+        System.out.println("Shuffling Dominoes..");
+        KingdominoController.startNewGame();
+    }
+    
+    public void generateInitialPlayerOrder() {
+    	System.out.println("Generating initial player order..");
+    }
+    
+    public void createNextDraft() {
+        System.out.println("Creating next draft..");
+        KingdominoController.createNextDraftOfDominoes(KingdominoApplication.getKingdomino().getCurrentGame().getAllDrafts().size()+1);
+    }
+    
+    public void orderNextDraft() {
+        System.out.println("Ordering next draft..");
+        KingdominoController.orderAndRevealNextDraft();
+    }
+    
+    public void revealNextDraft() {
+        System.out.println("Revealing next draft: ");
+       	List<Domino> dominos = KingdominoApplication.getKingdomino().getCurrentGame().getNextDraft().getIdSortedDominos();
+       	List<Integer> ids = new ArrayList<Integer>();
+		for(int i = 0; i < 4; i++) {
+			ids.add(dominos.get(i).getId());			
+		}
+        System.out.println(Arrays.toString(ids.toArray()));
+    }
+    
+    
+    
+     /*
+     * Actions for selecting domino
+     */
+     public void chooseNextDomino(int id) {
+     	selectValid = KingdominoController.chooseNextDomino(id);
+     }
+     
+
+     
+     /*
+     * Action for placing domino
+     */
+     public void placeDomino(Player player, Domino domino, int x, int y, DirectionKind direction, boolean satisfied){
+     	placeValid = KingdominoController.placeDomino(player, domino, x, y, direction, satisfied);
+
+     	discardValid = false;
+
+    }
+   
+   public void moveCurrentDomino(DominoInKingdom dom, String movement, Player player){
+   		KingdominoController.moveCurrentDomino(dom, movement, player);
+   }
+   
+
+   public void rotateCurrentDomino(Player p, Domino domino, String rotation){
+   		KingdominoController.rotateCurrentDomino(p, domino, rotation);
+   }
+   
+     public void discardDomino(Kingdom k, Domino d) {
+     	discardValid = KingdominoController.discardDomino(k,d);
+     	placeValid = false;
+     }
+     
+     public void initPlacement(){
+     	Player player = KingdominoApplication.getKingdomino().getCurrentGame().getNextPlayer();
+     	KingdominoController.initPlacement(player, player.getDominoSelection().getDomino());
+     }
+     
+     public void updateNextPlayer(){
+     	Domino current = KingdominoController.getNextDominoInDraft(KingdominoApplication.getKingdomino().getCurrentGame().getCurrentDraft());
+		if(current != null){
+			Player nextPlayer = current.getDominoSelection().getPlayer();
+			KingdominoApplication.getKingdomino().getCurrentGame().setNextPlayer(nextPlayer);
+			hasNext = true;
+		}
+		else{
+			hasNext = false;
+		}
+     }
+     
+     public void shiftNextDraft(){
+     	Game game = KingdominoApplication.getKingdomino().getCurrentGame();
+     	game.setCurrentDraft(game.getNextDraft());
+
+     }
+     
+     /*
+     * Actions for calculating player score
+     */
+     public void calculatePlayerScore() {
+     	System.out.println("Calculating player score...");
+     	KingdominoController.calculatePlayerScore();
+     	Game game = KingdominoApplication.getKingdomino().getCurrentGame();
+     	for(Player player : game.getPlayers()){
+     		System.out.println(player.getColor() + " : " + player.getTotalScore());
+     	} 
+     }
+     
+     /*
+     * Actions for calculating ranking
+     */
+     public void calculateRanking() {
+        System.out.println("Calculating ranking..");
+     	HashMap<Player, Integer> map = KingdominoController.calculateRanking();
+     	Game game = KingdominoApplication.getKingdomino().getCurrentGame();
+     	for(Player player: game.getPlayers()){
+     		System.out.println(player.getColor() + " : " + player.getCurrentRanking());
+     	}
+     }
+
+}
